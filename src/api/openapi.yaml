@@ -1,0 +1,574 @@
+openapi: 3.0.0
+info:
+  title: Certificate Manager
+  description: |
+    This Certificate Manager (CM) provides an API for the following certificate actions:
+
+      * Create root CAs
+      * Create intermediate CAs
+      * Issue end-entity (EE) certificates, signed with any of the CAs
+      * Sign CSRs with any of the CAs
+
+    The primary usecase is to issue certificates for server endpoints within a private security domain.
+
+    ## Private key management
+
+    The private keys for any of the CAs is only stored internally and can not be retrived throught the API.
+  version: 0.0.1
+
+servers:
+  - url: /1.0
+    description: Optional server description, e.g. Internal staging server for testing
+
+tags:
+  - name: Cert
+    description: EE certificate related operations
+  - name: CA
+    description: CA related operations
+  - name: Role
+    description: Certificate signing roles
+
+components:
+  schemas:
+    CAName:
+      type: object
+      properties:
+        name:
+          type: string
+          format: name
+      required:
+        - name
+
+    CertIssueRequest:
+      type: object
+      properties:
+        common_name:
+          type: string
+        organization_name:
+          type: string
+        locality_name:
+          type: string
+        state_or_province_name:
+          type: string
+        country_name:
+          type: string
+        size:
+          type: integer
+          default: 2048
+          enum:
+            - 2048
+            - 4096
+      required:
+        - common_name
+        - size
+
+    CAIssueRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          description: |
+            This is the name the new root CA will be known as.
+            The name must be used for any subsequent interactions with the CA
+        common_name:
+          type: string
+        organization_name:
+          type: string
+        locality_name:
+          type: string
+        state_or_province_name:
+          type: string
+        country_name:
+          type: string
+        size:
+          type: integer
+          default: 4096
+          enum:
+            - 2048
+            - 4096
+      required:
+        - common_name
+        - size
+        - name
+
+    CertSubject:
+      type: object
+      properties:
+        common_name:
+          type: string
+        organization_name:
+          type: string
+        locality_name:
+          type: string
+        state_or_province_name:
+          type: string
+        country_name:
+          type: string
+      required:
+        - common_name
+
+    CertRequest:
+      allOf:
+        - $ref: '#/components/schemas/CertSubject'
+        - type: object
+          required:
+            - size
+          properties:
+            size:
+              type: integer
+              default: 2048
+              enum:
+                - 2048
+                - 4096
+
+    CARequest:
+      allOf:
+        - $ref: '#/components/schemas/CAName'
+        - $ref: '#/components/schemas/CertSubject'
+        - type: object
+          properties:
+            size:
+              type: integer
+              default: 4096
+              enum:
+                - 2048
+                - 4096
+          required:
+            - size
+
+    CertResponse:
+      type: object
+      properties:
+        certificate:
+          type: string
+          example: |
+            -----BEGIN CERTIFICATE-----
+            MIIFUjCCAzqgAwIBAgIIYptPKfpLLK4wDQYJKoZIhvcNAQELBQAwRzELMAkGA1UE
+            BhMCVUsxDzANBgNVBAcMBkxvbmRvbjEVMBMGA1UECgwMQnJpZ2h0bWF0dGVyMRAw
+            ...
+            -----END CERTIFICATE-----
+        ca_chain:
+          type: string
+          example: |
+            -----BEGIN CERTIFICATE-----
+            MIIFUjCCAzqgAwIBAgIIYptPKfpLLK4wDQYJKoZIhvcNAQELBQAwRzELMAkGA1UE
+            BhMCVUsxDzANBgNVBAcMBkxvbmRvbjEVMBMGA1UECgwMQnJpZ2h0bWF0dGVyMRAw
+            ...
+            -----END CERTIFICATE-----
+            -----BEGIN CERTIFICATE-----
+            MIIFUjCCAzqgAwIBAgIIYptPKfpLLK4wDQYJKoZIhvcNAQELBQAwRzELMAkGA1UE
+            BhMCVUsxDzANBgNVBAcMBkxvbmRvbjEVMBMGA1UECgwMQnJpZ2h0bWF0dGVyMRAw
+            ...
+            -----END CERTIFICATE-----
+
+    CertIssueResponse:
+      allOf:
+        - $ref: '#/components/schemas/CertResponse'
+        - type: object
+          properties:
+            private_key:
+              type: string
+              example: |
+                -----BEGIN PRIVATE KEY-----
+                MIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQDXWCTFxx5E2cVH
+                tWzwHpmiHwKRP4hTGpaHVJtelCE1WPxjyq74AVfOnOi5dPi3f1G66jwpWwb4vSeT
+                ...
+                -----END PRIVATE KEY-----
+
+    Role:
+      type: object
+      properties:
+        paths:
+          type: array
+          items:
+            type: string
+        default_ttl:
+          type: integer
+          default: 168
+        max_ttl:
+          type: integer
+          default: 9490
+        allow_wildcards:
+          type: boolean
+          default: false
+        allow_naked:
+          type: boolean
+          default: false
+
+paths:
+  /cert/{cert}/info:
+    get:
+      tags:
+        - Cert
+      operationId: cert.info
+      summary: Get various details of a certificate
+      description: >
+        This endpoint will lookup a previously issued certificate and return the details.
+        Not all details will be provided.
+      parameters:
+        - name: cert
+          description: The name of the certificate to return the details about
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Certificate details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CertResponse'
+
+  /cert/{ca}/sign/{role}:
+    post:
+      tags:
+        - Cert
+      operationId: cert.sign
+      description: |
+        Sign a CSR with a CA
+      parameters:
+        - name: ca
+          description: Name of CA to sign CSR with
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: role
+          description: Role to use when signing CSR
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: ttl
+          description: Desired TTL for certificate
+          in: query
+          required: false
+          schema:
+            type: integer
+      requestBody:
+        content:
+          plain/text:
+            schema:
+              type: string
+              example: |
+                -----BEGIN CERTIFICATE REQUEST-----
+                MIICizCCAXMCAQAwRjELMAkGA1UEBhMCVUsxDzANBgNVBAcMBkxvbmRvbjEMMAoG
+                A1UECgwDQm9iMRgwFgYDVQQDDA93d3cuZXhhbXBsZS5jb20wggEiMA0GCSqGSIb3
+                ...
+                -----END CERTIFICATE REQUEST-----
+      responses:
+        '201':
+          description: Signed certificate details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CertResponse'
+
+  /cert/{ca}/issue/{role}:
+    post:
+      tags:
+        - Cert
+      operationId: cert.issue
+      description: |
+        Issue new EE certificate
+      parameters:
+        - name: ca
+          description: Name of CA to sign certificate with
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: role
+          description: Role to use when issuing certificate
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: ttl
+          description: Desired TTL for certificate
+          in: query
+          required: false
+          schema:
+            type: integer
+        - name: alt_domains
+          description: Alternative domains
+          in: query
+          required: false
+          schema:
+            type: array
+            items:
+              type: string
+        - name: alt_ips
+          description: Alternative IPs
+          in: query
+          required: false
+          schema:
+            type: array
+            items:
+              type: string
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/CertIssueRequest'
+
+      responses:
+        '201':
+          description: Issued certificate details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CertIssueResponse'
+
+  /ca/{ca}/roles:
+    get:
+      tags:
+        - Role
+      operationId: role.list_roles
+      description: |
+        List roles for CA
+      parameters:
+        - name: ca
+          description: |
+            The CA related to the role
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Role updated
+          content:
+            application/json:
+              schema:
+                type: array
+                example:
+                  - server
+                  - client
+
+  /ca/{ca}/roles/{role}:
+    parameters:
+      - name: ca
+        description: |
+          The CA related to the role
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: role
+        description: Role name
+        in: path
+        required: true
+        schema:
+          type: string
+
+    get:
+      tags:
+        - Role
+      operationId: role.get_role
+      description: |
+        Get existing role
+      responses:
+        '200':
+          description: Role updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Role'
+
+    put:
+      tags:
+        - Role
+      operationId: role.put_role
+      description: |
+        Add new role or modify existing role
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Role'
+      responses:
+        '200':
+          description: Role updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Role'
+        '201':
+          description: New role created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Role'
+
+    delete:
+      tags:
+        - Role
+      operationId: role.delete_role
+      description: |
+        Delete role
+      responses:
+        '204':
+          description: Role has been removed
+
+  /ca:
+    get:
+      tags:
+        - CA
+      operationId: ca.list
+      description: List all the CAs
+      responses:
+        '200':
+          description: List CAs
+          content:
+            application/json:
+              schema:
+                type: array
+                example:
+                  - root
+                  - test
+
+  /ca/{ca}:
+    parameters:
+      - name: ca
+        in: path
+        required: true
+        schema:
+          type: string
+
+    get:
+      tags:
+        - CA
+      operationId: ca.get_ca
+      description: Get the details of a CA
+      responses:
+        '200':
+          description: CA details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CertResponse'
+    delete:
+      tags:
+        - CA
+      operationId: ca.delete_ca
+      description: Remove a CA
+      responses:
+        '204':
+          description: CA has been removed
+
+  /ca/{ca}/cert:
+    get:
+      tags:
+        - CA
+      operationId: ca.get_cert
+      description: |
+        Get CA certificate
+      parameters:
+        - name: ca
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: CA certificate in PEM encoding
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: |
+                  -----BEGIN CERTIFICATE-----
+                  MIIFUjCCAzqgAwIBAgIIYptPKfpLLK4wDQYJKoZIhvcNAQELBQAwRzELMAkGA1UE
+                  BhMCVUsxDzANBgNVBAcMBkxvbmRvbjEVMBMGA1UECgwMQnJpZ2h0bWF0dGVyMRAw
+                  ...
+
+  /ca/{ca}/ca-chain:
+    get:
+      tags:
+        - CA
+      operationId: ca.get_chain
+      description: |
+        Get CA certificate chain
+      parameters:
+        - name: ca
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: CA certificate chain in PEM encoding
+          content:
+            text/plain:
+              schema:
+                type: string
+
+  /ca/root:
+    post:
+      tags:
+        - CA
+      operationId: ca.root
+      description: |
+        Create a new root CA
+
+        The issued root CA will be self signed.
+
+        The root CA can be used to directly issue new EE certificates or to sign intermediate CAs
+      parameters:
+        - name: ttl
+          description: Desired TTL for CA
+          in: query
+          required: false
+          schema:
+            type: integer
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/CAIssueRequest'
+
+      responses:
+        '201':
+          description: New CA
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CertResponse'
+
+  /ca/{parent}/intermediate:
+    post:
+      tags:
+        - CA
+      operationId: ca.intermediate
+      description: |
+        Create a new intermediate CA
+
+        The new intermediate CA will be signed by the specified parent CA
+      parameters:
+        - name: parent
+          in: path
+          description: The name of the parent CA used to sign this new intermediate CA
+          required: true
+          schema:
+            type: string
+        - name: ttl
+          description: Desired TTL for CA
+          in: query
+          required: false
+          schema:
+            type: integer
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/CAIssueRequest'
+
+      responses:
+        '201':
+          description: New CA
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CertResponse'
