@@ -196,7 +196,7 @@ components:
           default: false
 
 paths:
-  /cert/{cert}/info:
+  /cert/info/{cert}:
     get:
       tags:
         - Cert
@@ -220,7 +220,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/CertResponse'
 
-  /cert/{ca}/sign/{role}:
+  /cert/sign/{ca}/{role}:
     post:
       tags:
         - Cert
@@ -265,7 +265,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/CertResponse'
 
-  /cert/{ca}/issue/{role}:
+  /cert/issue/{ca}/{role}:
     post:
       tags:
         - Cert
@@ -320,7 +320,8 @@ paths:
               schema:
                 $ref: '#/components/schemas/CertIssueResponse'
 
-  /ca/{ca}/roles:
+
+  /ca/roles/{ca}:
     get:
       tags:
         - Role
@@ -346,7 +347,7 @@ paths:
                   - server
                   - client
 
-  /ca/{ca}/roles/{role}:
+  /ca/roles/{ca}/{role}:
     parameters:
       - name: ca
         description: |
@@ -457,7 +458,7 @@ paths:
         '204':
           description: CA has been removed
 
-  /ca/{ca}/cert:
+  /ca/cert/{ca}:
     get:
       tags:
         - CA
@@ -483,7 +484,7 @@ paths:
                   BhMCVUsxDzANBgNVBAcMBkxvbmRvbjEVMBMGA1UECgwMQnJpZ2h0bWF0dGVyMRAw
                   ...
 
-  /ca/{ca}/ca-chain:
+  /ca/ca-chain/{ca}:
     get:
       tags:
         - CA
@@ -536,7 +537,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/CertResponse'
 
-  /ca/{parent}/intermediate:
+  /ca/intermediate/{parent}:
     post:
       tags:
         - CA
