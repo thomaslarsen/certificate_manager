@@ -31,7 +31,7 @@ def _calc_enddate(cert_ttl, max_ttl=None, default_ttl=None):
     The TTL value used if no specific TTL is requested
 
   :return:
-    A tuple containing None and datetime object with the certificated end date
+    The certificated end date
   """
   if cert_ttl:
     if max_ttl and cert_ttl > max_ttl:

@@ -142,6 +142,7 @@ def info(cert):
 
     info = c.subject.native
     info["serial"] = c.serial_number
+    # TODO add more details
 
     return info
   except NotFoundException as e:

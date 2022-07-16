@@ -207,7 +207,7 @@ paths:
         Not all details will be provided.
       parameters:
         - name: cert
-          description: The name of the certificate to return the details about
+          description: The name or serial of the certificate to return the details about
           in: path
           required: true
           schema:
@@ -312,7 +312,6 @@ paths:
           application/x-www-form-urlencoded:
             schema:
               $ref: '#/components/schemas/CertIssueRequest'
-
       responses:
         '201':
           description: Issued certificate details
