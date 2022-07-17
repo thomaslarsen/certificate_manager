@@ -7,6 +7,15 @@ class FileManager():
   def __init__(self):
     Path(self.base_path).mkdir(parents=True, exist_ok=True)
 
+  @classmethod
+  def _rmdir_force(cls, pth):
+    for sub in pth.iterdir():
+      if sub.is_dir():
+        FileManager._rmdir_force(sub)
+      else:
+        sub.unlink()
+    return pth.rmdir()
+
   def get_file_path(self, path, create=False):
     if path:
       file_path = f"{self.base_path}/{path}"
@@ -57,7 +66,10 @@ class FileManager():
     file_path = self.get_file_path(path)
     my_file = Path(f"{file_path}/{name}")
 
-    return my_file.unlink()
+    if my_file.is_dir():
+      return FileManager._rmdir_force(my_file)
+    else:
+      return my_file.unlink()
 
 
 

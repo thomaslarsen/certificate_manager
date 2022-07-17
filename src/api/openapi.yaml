@@ -8,6 +8,7 @@ info:
       * Create intermediate CAs
       * Issue end-entity (EE) certificates, signed with any of the CAs
       * Sign CSRs with any of the CAs
+      * Issue client certificates
 
     The primary usecase is to issue certificates for server endpoints within a private security domain.
 
@@ -22,11 +23,13 @@ servers:
 
 tags:
   - name: Cert
-    description: EE certificate related operations
+    description: Certificate related operations
   - name: CA
     description: CA related operations
   - name: Role
     description: Certificate signing roles
+  - name: Client
+    description: Client certificates
 
 components:
   schemas:
@@ -61,6 +64,14 @@ components:
       required:
         - common_name
         - size
+
+    ClientCertIssueRequest:
+      type: object
+      properties:
+        common_name:
+          type: string
+      required:
+        - common_name
 
     CAIssueRequest:
       type: object
@@ -194,6 +205,45 @@ components:
         allow_naked:
           type: boolean
           default: false
+
+    Client:
+      type: object
+      properties:
+        ca:
+          type: string
+          description: |
+            Parent CA used to sign client certificates
+
+    ClientRole:
+      type: object
+      properties:
+        common_names:
+          type: array
+          items:
+            type: string
+        subject:
+          type: object
+          properties:
+            organization_name:
+              type: string
+            locality_name:
+              type: string
+            state_or_province_name:
+              type: string
+            country_name:
+              type: string
+        size:
+          type: integer
+          default: 2048
+          enum:
+            - 2048
+            - 4096
+        default_ttl:
+          type: integer
+          default: 9490
+        max_ttl:
+          type: integer
+          default: 17520
 
 paths:
   /cert/info/{cert}:
@@ -572,3 +622,317 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/CertResponse'
+
+  /client:
+    get:
+      operationId: client.list_clients
+      tags:
+        - Client
+      description: |
+        Get list of clients
+      responses:
+        '200':
+          description: |
+            Array of client names
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: string
+
+  /client/{client}:
+    parameters:
+      - name: client
+        description: |
+          The name of the client recipient
+        in: path
+        schema:
+          type: string
+        required: true
+    put:
+      operationId: client.put_client
+      tags:
+        - Client
+      description: |
+        Create a new client certificate recipient
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Client'
+      responses:
+        '200':
+          description: |
+            Client recipient updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Client'
+        '201':
+          description: |
+            Client recipient created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Client'
+    delete:
+      operationId: client.delete_client
+      tags:
+        - Client
+      description: |
+        Delete client certificate recipient
+      responses:
+        '204':
+          description: Client has been removed
+    get:
+      operationId: client.get_client
+      tags:
+        - Client
+      description: |
+        Get details of client certificate recipient
+      responses:
+        '200':
+          description: |
+            Client recipient
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Client'
+
+  /client/cert/issue/{client}/{role}:
+    parameters:
+      - name: client
+        description: |
+          The name of the client recipient
+        in: path
+        schema:
+          type: string
+        required: true
+      - name: role
+        description: |
+          The client role used to issue the certificate
+        in: path
+        schema:
+          type: string
+        required: true
+    post:
+      operationId: client.issue
+      tags:
+        - Client
+        - Cert
+      description: |
+        Issue client certificate
+      parameters:
+        - name: ttl
+          description: Desired TTL for certificate
+          in: query
+          required: false
+          schema:
+            type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ClientCertIssueRequest'
+      responses:
+        '201':
+          description: Issued client certificate details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CertIssueResponse'
+
+  /client/cert/sign/{client}/{role}:
+    parameters:
+      - name: client
+        description: |
+          The name of the client recipient
+        in: path
+        schema:
+          type: string
+        required: true
+      - name: role
+        description: |
+          The client role used to issue the certificate
+        in: path
+        schema:
+          type: string
+        required: true
+    post:
+      operationId: client.sign
+      tags:
+        - Client
+        - Cert
+      description: |
+        Sign client certificate
+      parameters:
+        - name: ttl
+          description: Desired TTL for certificate
+          in: query
+          required: false
+          schema:
+            type: integer
+        - name: cn
+          description: |
+            Override the CN defined in the CSR
+          in: query
+          required: false
+          schema:
+            type: string
+      requestBody:
+        content:
+          plain/text:
+            schema:
+              type: string
+              example: |
+                -----BEGIN CERTIFICATE REQUEST-----
+                MIICizCCAXMCAQAwRjELMAkGA1UEBhMCVUsxDzANBgNVBAcMBkxvbmRvbjEMMAoG
+                A1UECgwDQm9iMRgwFgYDVQQDDA93d3cuZXhhbXBsZS5jb20wggEiMA0GCSqGSIb3
+                ...
+                -----END CERTIFICATE REQUEST-----
+      responses:
+        '201':
+          description: Issued certificate details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CertResponse'
+
+  /client/cert/{client}/{cert}:
+    parameters:
+      - name: client
+        description: |
+          The name of the client recipient
+        in: path
+        schema:
+          type: string
+        required: true
+      - name: cert
+        description: |
+          The CN of the issued certificate
+        in: path
+        schema:
+          type: string
+        required: true
+    get:
+      operationId: client.get_cert
+      tags:
+        - Client
+        - Cert
+      description: |
+        Get an already issued client cert
+      responses:
+        '200':
+          description: Certificate details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CertResponse'
+
+    delete:
+      operationId: client.delete_cert
+      tags:
+        - Client
+        - Cert
+      description: |
+        Delete an issued client cert
+      responses:
+        '204':
+          description: Client certificate has been removed
+
+  /client/role/{client}:
+    parameters:
+      - name: client
+        description: |
+          The name of the client recipient
+        in: path
+        schema:
+          type: string
+        required: true
+    get:
+      operationId: client.list_client_roles
+      tags:
+        - Client
+        - Role
+      description: |
+        Get list of client roles
+      responses:
+        '200':
+          description: |
+            Array of client role names
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: string
+
+  /client/role/{client}/{role}:
+    parameters:
+      - name: client
+        description: |
+          The name of the client recipient
+        in: path
+        schema:
+          type: string
+        required: true
+      - name: role
+        description: |
+          The Name of the client role
+        in: path
+        schema:
+          type: string
+        required: true
+    put:
+      operationId: client.put_role
+      tags:
+        - Client
+        - Role
+      description: |
+        Create a new client certificate role
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ClientRole'
+      responses:
+        '200':
+          description: |
+            Client role updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClientRole'
+        '201':
+          description: |
+            Client role created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClientRole'
+    get:
+      operationId: client.get_client_role
+      tags:
+        - Client
+        - Role
+      description: |
+        Get a client certificate role
+      responses:
+        '200':
+          description: |
+            Client role
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClientRole'
+    delete:
+      operationId: client.delete_client_role
+      tags:
+        - Client
+        - Role
+      description: |
+        Delete a client certificate role
+      responses:
+        '204':
+          description: Client role has been removed
